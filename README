@@ -1,7 +1,7 @@
 Android: TouchImageView
 Created by: Mike Ortiz
-Updated by: Patrick Lackemacher
-Date: 2/17/2012
+Updated by: Newbilius aka Moiseev Dmitry
+Date: 11/8/2013
 ----------------------
 Adds panning and pinch zoom to Android ImageView.
 
@@ -9,3 +9,7 @@ Update:
 ----------------------
 Can now be added to XML layout.
 Added support for setting bitmap to null without throwing exception.
+
+Newbilius Update:
+----------------------
+Add ZoomIn/ZoomOut by double tap.

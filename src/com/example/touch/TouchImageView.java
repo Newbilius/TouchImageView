@@ -1,13 +1,13 @@
+package com.example.touch;
 /*
  * TouchImageView.java
  * By: Michael Ortiz
  * Updated By: Patrick Lackemacher
  * Updated By: Babay88
+ * Updated By: Newbilius aka Moiseev Dima
  * -------------------
  * Extends Android ImageView to include pinch zooming and panning.
  */
-
-package com.example.touch;
 
 import android.content.Context;
 import android.graphics.Matrix;
@@ -15,6 +15,7 @@ import android.graphics.PointF;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -36,7 +37,7 @@ public class TouchImageView extends ImageView {
     float minScale = 1f;
     float maxScale = 3f;
     float[] m;
-
+    boolean doubleTap=true;
 
     int viewWidth, viewHeight;
     static final int CLICK = 3;
@@ -58,7 +59,7 @@ public class TouchImageView extends ImageView {
         super(context, attrs);
         sharedConstructing(context);
     }
-    
+
     private void sharedConstructing(Context context) {
         super.setClickable(true);
         this.context = context;
@@ -72,16 +73,20 @@ public class TouchImageView extends ImageView {
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
+                if (doubleTap){
+                    gestureTapDetector.onTouchEvent(event);
+                }
+
                 mScaleDetector.onTouchEvent(event);
                 PointF curr = new PointF(event.getX(), event.getY());
 
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                    	last.set(curr);
+                        last.set(curr);
                         start.set(last);
                         mode = DRAG;
                         break;
-                        
+
                     case MotionEvent.ACTION_MOVE:
                         if (mode == DRAG) {
                             float deltaX = curr.x - last.x;
@@ -106,7 +111,7 @@ public class TouchImageView extends ImageView {
                         mode = NONE;
                         break;
                 }
-                
+
                 setImageMatrix(matrix);
                 invalidate();
                 return true; // indicate event was handled
@@ -119,6 +124,31 @@ public class TouchImageView extends ImageView {
         maxScale = x;
     }
 
+    public void setDoubleTapZoom(boolean DoubleTap){
+        doubleTap=DoubleTap;
+    }
+
+    private void DoMath(float mScaleFactor,float X,float Y){
+        float origScale = saveScale;
+        saveScale *= mScaleFactor;
+        if (saveScale > maxScale) {
+            saveScale = maxScale;
+            mScaleFactor = maxScale / origScale;
+        } else if (saveScale < minScale) {
+            saveScale = minScale;
+            mScaleFactor = minScale / origScale;
+        }
+
+        if (origWidth * saveScale <= viewWidth || origHeight * saveScale <= viewHeight){
+            matrix.postScale(mScaleFactor, mScaleFactor, viewWidth / 2, viewHeight / 2);
+        }
+        else{
+            matrix.postScale(mScaleFactor, mScaleFactor, X, Y);
+        }
+
+        fixTrans();
+    }
+
     private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
         @Override
         public boolean onScaleBegin(ScaleGestureDetector detector) {
@@ -128,32 +158,34 @@ public class TouchImageView extends ImageView {
 
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
-            float mScaleFactor = detector.getScaleFactor();
-            float origScale = saveScale;
-            saveScale *= mScaleFactor;
-            if (saveScale > maxScale) {
-                saveScale = maxScale;
-                mScaleFactor = maxScale / origScale;
-            } else if (saveScale < minScale) {
-                saveScale = minScale;
-                mScaleFactor = minScale / origScale;
-            }
+            DoMath(detector.getScaleFactor(),detector.getFocusX(), detector.getFocusY());
 
-            if (origWidth * saveScale <= viewWidth || origHeight * saveScale <= viewHeight)
-                matrix.postScale(mScaleFactor, mScaleFactor, viewWidth / 2, viewHeight / 2);
-            else
-                matrix.postScale(mScaleFactor, mScaleFactor, detector.getFocusX(), detector.getFocusY());
-
-            fixTrans();
             return true;
         }
     }
+
+    final GestureDetector gestureTapDetector = new GestureDetector(new GestureDetector.SimpleOnGestureListener() {
+        public boolean onDoubleTap(MotionEvent e) {
+            float mScaleFactor = maxScale;
+
+            if (saveScale>minScale){
+                while (saveScale>minScale){
+                    DoMath(0.9f,viewWidth / 2, viewHeight / 2); //hack to scale, otherwise not centering.
+                }
+            }else{
+                mScaleFactor = maxScale;
+                DoMath(mScaleFactor,e.getX(), e.getY());
+            }
+
+            return false;
+        }
+    });
 
     void fixTrans() {
         matrix.getValues(m);
         float transX = m[Matrix.MTRANS_X];
         float transY = m[Matrix.MTRANS_Y];
-        
+
         float fixTransX = getFixTrans(transX, viewWidth, origWidth * saveScale);
         float fixTransY = getFixTrans(transY, viewHeight, origHeight * saveScale);
 
@@ -178,7 +210,7 @@ public class TouchImageView extends ImageView {
             return -trans + maxTrans;
         return 0;
     }
-    
+
     float getFixDragTrans(float delta, float viewSize, float contentSize) {
         if (contentSize <= viewSize) {
             return 0;
@@ -191,7 +223,7 @@ public class TouchImageView extends ImageView {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         viewWidth = MeasureSpec.getSize(widthMeasureSpec);
         viewHeight = MeasureSpec.getSize(heightMeasureSpec);
-        
+
         //
         // Rescales image on rotation
         //
@@ -210,8 +242,6 @@ public class TouchImageView extends ImageView {
                 return;
             int bmWidth = drawable.getIntrinsicWidth();
             int bmHeight = drawable.getIntrinsicHeight();
-            
-            Log.d("bmSize", "bmWidth: " + bmWidth + " bmHeight : " + bmHeight);
 
             float scaleX = (float) viewWidth / (float) bmWidth;
             float scaleY = (float) viewHeight / (float) bmHeight;
